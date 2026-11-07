@@ -1,29 +1,18 @@
-// We require the Hardhat Runtime Environment explicitly here. This is optional
-// but useful for running the script in a standalone fashion through `node <script>`.
-//
-// When running the script with `npx hardhat run <script>` you'll find the Hardhat
-// Runtime Environment's members available in the global scope.
+// Deploys the IFT token and the staking pool.
+// Run locally:   npx hardhat run scripts/deploy.js
+// Run on Sepolia: SEPOLIA_RPC_URL=... PRIVATE_KEY=... npx hardhat run scripts/deploy.js --network sepolia
 const hre = require("hardhat");
 
 async function main() {
-  // Hardhat always runs the compile task when running scripts with its command
-  // line interface.
-  //
-  // If this script is run directly using `node` you may want to call compile
-  // manually to make sure everything is compiled
-  // await hre.run('compile');
-
-  // We get the contract to deploy
-  const Token = await hre.ethers.getContractFactory("Staking");
-  const token = await Token.deploy(10000);
-
+  const token = await (await hre.ethers.getContractFactory("IFTToken")).deploy();
   await token.deployed();
+  console.log("IFTToken deployed to:", token.address);
 
-  console.log("token deployed to:", token.address);
+  const staking = await (await hre.ethers.getContractFactory("Staking")).deploy(token.address);
+  await staking.deployed();
+  console.log("Staking deployed to:", staking.address);
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
 main()
   .then(() => process.exit(0))
   .catch((error) => {

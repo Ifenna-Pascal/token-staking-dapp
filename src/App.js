@@ -6,7 +6,7 @@ function App() {
   const [currentAccount, setCurrentAccount] = useState("")
   const checkIfWalletIsConnected = async () => {
     let eth;
-    if (window !== 'undefined') {
+    if (typeof window !== 'undefined') {
       eth = window.ethereum;
     }
     try {
@@ -26,7 +26,7 @@ function App() {
   }, [])
   const connect = async () => {
     let eth;
-        if (window !== 'undefined') {
+        if (typeof window !== 'undefined') {
           eth = window.ethereum;
         }
         try {
@@ -39,23 +39,6 @@ function App() {
           throw new Error('No ethereum object');
         }
       };
-      const checkIfWalletIsConnected = async () => {
-        let eth;
-        if (window !== 'undefined') {
-          eth = window.ethereum;
-        }
-        try {
-          if (!eth) return alert('please install metamask');
-          let accounts = await eth.request({ method: 'eth_accounts' });
-          if (accounts.length) {
-            setCurrentAccount(accounts[0]);
-            console.log('connected');
-          }
-        } catch (error) {
-          console.error(error);
-          throw new Error('No ethereum object');
-        }
-  }
   return (
     <div className="text-green-400 w-100 h-screen bg-gray-900">
       <button onClick={connect}>Connect Wallet</button>

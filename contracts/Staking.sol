@@ -1,77 +1,77 @@
-//SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.0;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.4;
 
-
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./token.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract Staking is IFTToken, Ownable, SafeMath {
-    address [] public stakers;
-     using SafeMath for uint256;
-    address private owner;
-    IFTToken  IfTtoken;
-    mapping (address => uint ) public stakingBalance;
-    mapping (address => bool) public hasStaked;
-    mapping (address => uint) public rewards;
-    
+/// @title IFT staking pool
+/// @notice Users stake IFT tokens, the owner distributes a 1% reward on
+/// each staked balance, and users withdraw their rewards or unstake at any time.
+contract Staking is Ownable {
+    IERC20 public immutable stakingToken;
 
-    constructor (IFTToken _ifttoken) public {
-        owner = msg.sender;
-        iftToken = _ifttoken;
-        IFTToken.transfer(msg.sender, 1000)
+    address[] public stakers;
+    mapping(address => uint256) public stakingBalance;
+    mapping(address => bool) public hasStaked;
+    mapping(address => bool) private isKnownStaker;
+    mapping(address => uint256) public rewards;
+
+    event Staked(address indexed user, uint256 amount);
+    event Unstaked(address indexed user, uint256 amount);
+    event RewardsDistributed(uint256 stakerCount);
+    event RewardWithdrawn(address indexed user, uint256 amount);
+
+    constructor(IERC20 _stakingToken) {
+        stakingToken = _stakingToken;
     }
 
-    function StakeToken (uint _amount)  public {
-        require( _amount > 0; "account must be greater than 0")
-        iftToken.transferFrom(msg.sender, address(this), amount);
-        stakingBalance[msg.sender] = stakingBalance[msg.sender].add(_amount);
+    function stakeTokens(uint256 _amount) external {
+        require(_amount > 0, "Amount must be greater than 0");
+        stakingToken.transferFrom(msg.sender, address(this), _amount);
+        stakingBalance[msg.sender] += _amount;
         hasStaked[msg.sender] = true;
-        stakers.push(msg.sender)
+        if (!isKnownStaker[msg.sender]) {
+            isKnownStaker[msg.sender] = true;
+            stakers.push(msg.sender);
+        }
+        emit Staked(msg.sender, _amount);
     }
 
-
-    function UnstakeToken ( uint _amount) public {
-        uint balance = stakingBalance[msg.sender];
-        require(balance > _amount, "Insufficient Balance");
-        stakingBalance[msg.sender] = stakingBalance[msg.sender] - _amount;
-        if(stakingBalance[msg.sender] == 0) {
+    function unstakeTokens(uint256 _amount) external {
+        require(_amount > 0, "Amount must be greater than 0");
+        require(stakingBalance[msg.sender] >= _amount, "Insufficient balance");
+        stakingBalance[msg.sender] -= _amount;
+        if (stakingBalance[msg.sender] == 0) {
             hasStaked[msg.sender] = false;
         }
-        iftToken.transfer(msg.sender, _amount);
-     };
+        stakingToken.transfer(msg.sender, _amount);
+        emit Unstaked(msg.sender, _amount);
+    }
 
-    function calculateReward(address _stakeholder)
-       public
-       view
-       returns(uint256)
-   {
-       return stakingBalance[_stakeholder] / 100;
-   }
+    /// @notice Reward for one distribution round: 1% of the staked balance.
+    function calculateReward(address _staker) public view returns (uint256) {
+        return stakingBalance[_staker] / 100;
+    }
 
-        /**
-    * @notice A method to distribute rewards to all stakers.
-    */
-   function distributeRewards()
-       public
-       onlyOwner
-   {
-       for (uint256 s = 0; s < stakers.length; s += 1){
-           address stakeholder = stakers[s];
-           uint256 reward = calculateReward(stakeholder);
-           rewards[stakeholder] = rewards[stakeholder] + reward;
-       }
-   }
+    /// @notice Credits every current staker with one round of rewards.
+    /// The contract must hold enough tokens to pay rewards out.
+    function distributeRewards() external onlyOwner {
+        for (uint256 i = 0; i < stakers.length; i++) {
+            address staker = stakers[i];
+            rewards[staker] += calculateReward(staker);
+        }
+        emit RewardsDistributed(stakers.length);
+    }
 
-   function WithdrawToken () public {
-       public
-   {
-       uint256 reward = rewards[msg.sender];
-       rewards[msg.sender] = 0;
-        iftToken.transfer(msg.sender, reward)
-   }
+    function withdrawRewards() external {
+        uint256 reward = rewards[msg.sender];
+        require(reward > 0, "No rewards to withdraw");
+        rewards[msg.sender] = 0;
+        stakingToken.transfer(msg.sender, reward);
+        emit RewardWithdrawn(msg.sender, reward);
+    }
 
-}
-
-
+    function stakerCount() external view returns (uint256) {
+        return stakers.length;
+    }
 }
